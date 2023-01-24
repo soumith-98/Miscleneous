@@ -1,0 +1,5 @@
+library(rpart.plot)
+library(rpart)
+data <- read.csv("C:/Users/Soumith/Downloads/AData.csv", header=FALSE)
+data.tree <- rpart(V6 ~ ., data = data,  cp = 0.02)
+rpart.plot(data.tree, type = 1, fallen.leaves = FALSE)

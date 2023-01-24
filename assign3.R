@@ -1,0 +1,368 @@
+
+
+##1.a Generate a data set with p = 20 features, n = 1,000 observations, and an associated quantitative response vector generated according to the model Y=??X+??, where ?? has some elements that are exactly equal to zero.
+require(tidyverse)
+set.seed(1)
+df <- data.frame(replicate(20, rnorm(n = 1000)))
+
+df %>%                                                          ##I use the reduce function from the purr package to more easily compute the y variable.
+  reduce(function(y, x) y + ifelse(runif(1) < 0.5,
+                                   rnorm(1, mean = 5, sd = 1), 
+                                   0)*x + rnorm(1000)) -> df$Y
+
+
+
+
+
+##1b. Split your data set into a training set containing 100 observations and a test set containing 900 observations
+require(caret)
+
+inTrain <- createDataPartition(df$Y, p = 0.1, list = F)
+
+x_train <- df[inTrain, -21]
+y_train <- df[inTrain, 21]
+x_test <- df[-inTrain, -21]  ##The createDataPartition function from the caret creates train/test splits. In case of unbalanced classes it also makes sure one gets an even split of the response variable.
+y_test <- df[-inTrain, 21]
+
+
+
+
+##1.bc) Perform best subset selection on the training set, and plot the training set MSE associated with the best model of each size.
+
+require(leaps); require(ggplot2); require(dplyr); require(ggthemes)
+
+best_set <- regsubsets(x = x_train, y = y_train, nvmax = 20)
+
+best_set_summary <- summary(best_set)
+
+data_frame(MSE = best_set_summary$rss/900) %>%
+  mutate(id = row_number()) %>%
+  ggplot(aes(id, MSE)) +
+  geom_line() + geom_point(type = 9) +
+  xlab('Number of Variables Used') +
+  ggtitle('MSE on training set') +
+  theme_tufte() +
+  scale_x_continuous(breaks = 1:20)
+
+
+
+
+
+
+data_frame(train_error = best_set_summary$rss/900, vars = 1:20) %>%              ##As one would expect, the training MSE reduces with the addition of any new variable. Even after we've reached 10 predictors.
+  spread(vars, train_error)                              
+
+
+
+
+## 1.d) Plot the test set MSE associated with the best model of each size.
+test_errors = rep(NA,19)
+test.mat <- model.matrix(Y ~ ., data = df[-inTrain,])
+for (i in 1:20){
+  coefs = coef(best_set, id=i)
+  pred = test.mat[,names(coefs)]%*%coefs
+  test_errors[i] = mean((y_test-pred)^2)
+}
+
+
+data_frame(MSE = test_errors) %>%
+  mutate(id = row_number()) %>%
+  ggplot(aes(id, MSE)) +
+  geom_line() + geom_point(type = 9) +
+  xlab('Number of Variables Used') +
+  ggtitle('MSE on testing set') +
+  theme_tufte() +
+  scale_x_continuous(breaks = 1:20)
+
+
+
+which.min(test_errors)
+
+
+
+
+data_frame(test_errors, vars = 1:20) %>%       ##The test error settles at a minimum test error at 11 predictors and then stops decreasing.
+  spread(vars, test_errors)
+
+## 1. e For which model size does the test set MSE take on its minimum value? Comment on your results. If it takes on its minimum value for a model containing only an intercept or a model containing all of the features, then play around with the way that you aregenerating the data in (a) until you come up with a scenario in which the test set MSE is minimized for an intermediate model size.
+
+
+which.min(test_errors) ##The reported MSE minimum on the test set is achieved with 11 coefficients. This makes sense when we look at the corrplot below.
+
+
+
+
+require(corrplot)
+corrplot(cor(df), method = 'color', type = 'lower',diag = F)   ##We can see on the corrplot that there are about 10 variables that correlate well with the response variable.
+
+
+
+## 1f) How does the model at which the test set MSE is minimized compare to the true model used to generate the data? Comment on the coefficient values.
+##Thinking back to the calculation of Y: If runif(1) > 0.5 the coefficient would be 0. That means in about 50% of cases the coefficient will be 0. 50% of 20 is 10. 
+
+
+
+
+##2nd
+## 2a Produce some numerical and graphical summaries of the Weekly data. Do there appear to be any patterns
+library(ISLR)
+library(corrplot)    #### corrplot 0.84 loaded
+summary(Weekly)
+
+corrplot(cor(Weekly[,-9]), method="square") ##The only variables that appear to have any significant linear relation are Year and Volume. The correlational plot doesn't illustrate that any other variables are linearly related
+
+
+##The only variables that appear to have any significant linear relation are Year and Volume. The correlational plot doesn't illustrate that any other variables are linearly related
+
+attach(Weekly)
+Weekly.fit<-glm(Direction~Lag1+Lag2+Lag3+Lag4+Lag5+Volume, data=Weekly,family=binomial) ##The only variable that was statistically significant at the level of significance ?? =0.05 is Lag2. Otherwise the other variables fail to reject the null hypothesis; ?? = 0.
+summary(Weekly.fit)
+
+  ##2c Compute the confusion matrix and overall fraction of correct predictions. Explain what the confusion matrix is telling you about the types of mistakes made by logistic regression.
+
+logWeekly.prob= predict(Weekly.fit, type='response')
+logWeekly.pred =rep("Down", length(logWeekly.prob))
+logWeekly.pred[logWeekly.prob > 0.5] = "Up"
+table(logWeekly.pred, Direction)
+
+   ##2d Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions for the held out data (that is, the data from 2009 and 2010).
+
+train = (Year<2009)
+Weekly.0910 <-Weekly[!train,]
+Weekly.fit<-glm(Direction~Lag2, data=Weekly,family=binomial, subset=train)
+logWeekly.prob= predict(Weekly.fit, Weekly.0910, type = "response")
+logWeekly.pred = rep("Down", length(logWeekly.prob))
+logWeekly.pred[logWeekly.prob > 0.5] = "Up"
+Direction.0910 = Direction[!train]
+table(logWeekly.pred, Direction.0910)
+
+
+mean(logWeekly.pred == Direction.0910)
+
+   ##2e (e) Repeat (d) using LDA
+
+library(MASS)
+Weeklylda.fit<-lda(Direction~Lag2, data=Weekly,family=binomial, subset=train)
+Weeklylda.pred<-predict(Weeklylda.fit, Weekly.0910)
+table(Weeklylda.pred$class, Direction.0910)
+
+
+
+
+mean(Weeklylda.pred$class==Direction.0910) ##Using Linear Discriminant Analysis to develop a classifying model yielded similar results as the logistic regression model created in part D.
+
+
+
+
+
+Weeklyqda.fit = qda(Direction ~ Lag2, data = Weekly, subset = train)
+Weeklyqda.pred = predict(Weeklyqda.fit, Weekly.0910)$class
+table(Weeklyqda.pred, Direction.0910)
+
+
+
+
+
+mean(Weeklyqda.pred==Direction.0910)  ## Quadratic Linear Analysis created a model with an accuracy of 58.65%, which is lower than the previous methods. Also this model only considered predicting the correctness of weekly upward trends disregrading the downward weekly trends
+
+
+
+## Repeat (d) using KNN with K = 1.
+
+
+library(class)
+Week.train=as.matrix(Lag2[train])
+Week.test=as.matrix(Lag2[!train])
+train.Direction =Direction[train]
+set.seed(1)
+Weekknn.pred=knn(Week.train,Week.test,train.Direction,k=1)
+table(Weekknn.pred,Direction.0910)
+
+
+
+
+
+mean(Weekknn.pred == Direction.0910) ##The K-Nearest neighbors resulted in a classifying model with an accuracy rate of 50% which is equal to random chance.
+
+##g Which of these methods appears to provide the best results on this data?
+
+##The methods that have the highest accuracy rates are the Logistic Regression and Linear Discriminant Analysis; both having rates of 62.5%.
+
+
+###Experiment with different combinations of predictors, including possible transformations and interactions, for each of the methods. Report the variables, method, and associated confusion matrix that appears to provide the best results on the held out data. Note that you should also experiment with values for K in the KNN classifier.
+
+###Logistic Regression with Interaction Lag2:Lag4
+Weekly.fit<-glm(Direction~Lag2:Lag4+Lag2, data=Weekly,family=binomial, subset=train)
+logWeekly.prob= predict(Weekly.fit, Weekly.0910, type = "response")
+logWeekly.pred = rep("Down", length(logWeekly.prob))
+logWeekly.pred[logWeekly.prob > 0.5] = "Up"
+Direction.0910 = Direction[!train]
+table(logWeekly.pred, Direction.0910)
+
+
+
+
+mean(logWeekly.pred == Direction.0910)
+
+
+
+
+
+#LDA with Interaction Lag2:Lag4
+Weeklylda.fit<-lda(Direction~Lag2:Lag4+Lag2, data=Weekly,family=binomial, subset=train)
+Weeklylda.pred<-predict(Weeklylda.fit, Weekly.0910)
+table(Weeklylda.pred$class, Direction.0910)
+
+
+
+
+
+
+
+
+mean(Weeklylda.pred$class==Direction.0910)
+
+
+
+
+
+Weeklyqda.fit = qda(Direction ~ poly(Lag2,2), data = Weekly, subset = train)
+Weeklyqda.pred = predict(Weeklyqda.fit, Weekly.0910)$class
+table(Weeklyqda.pred, Direction.0910)
+
+
+
+
+
+
+
+
+
+
+mean(Weeklyqda.pred==Direction.0910)
+
+
+
+###K=10
+Week.train=as.matrix(Lag2[train])
+Week.test=as.matrix(Lag2[!train])
+train.Direction =Direction[train]
+set.seed(1)
+Weekknn.pred=knn(Week.train,Week.test,train.Direction,k=10)
+table(Weekknn.pred,Direction.0910)
+
+
+
+
+
+
+
+
+mean(Weekknn.pred == Direction.0910)
+
+
+
+
+###K=100
+
+Week.train=as.matrix(Lag2[train])
+Week.test=as.matrix(Lag2[!train])
+train.Direction =Direction[train]
+set.seed(1)
+Weekknn.pred=knn(Week.train,Week.test,train.Direction,k=100)
+table(Weekknn.pred,Direction.0910)
+
+
+
+
+
+
+
+
+
+
+
+mean(Weekknn.pred == Direction.0910)
+
+
+
+detach(Weekly)
+
+
+
+
+
+
+#3rd Q ) Produce pairwise scatterplots for all five variables, with different symbols orcolors representing the three different classes
+load("Diabetes.RData")
+data1<-Diabetes      ##Loading Diabeties data set by printing head of the dataset and dimensions of the dataset. 
+head(data1)
+dim(data1)
+
+
+
+
+data2= data1[ ,which(names(data1) %in% c("relwt","glufast","glutest","instest","sspg","group"))] ##Duplicating the dataset
+pairs(data1[1:5])                                                                                ##) Producing pairwise scatterplots for all five variables
+cols <- character(nrow(data2))
+cols[]<-"violet"
+cols[data2$group == 'Normal'] <- "black"    ##grouping data with normal diabetic
+cols[data2$group == 'Overt_Diabetic'] <- "purple" ##Grouping data with Overt Diabetic
+pairs(data2[1:5],col=cols)
+
+
+
+## 3(b) Apply linear discriminant analysis (LDA) and quadratic discriminant analysis(QDA). How does the performance of QDA compare to that of LDA in this case?
+
+
+
+library(MASS)
+
+lda.fit<- lda(group~.,data=data1)          ##Linear discriminant analysis
+lda.fit
+
+
+y_pred= predict(lda.fit, newdata =data1)  ##Classify Multivariate Observations by Linear Discrimination
+
+
+
+error_rate<-(1/length(data1$group))*length(which(data1$group==y_pred$class))
+mean(error_rate)
+
+
+
+
+
+
+qda.fit<- qda(group~.,data=data1)       ## Quadratic discriminant analysis
+qda.fit
+
+
+
+y_pred_1= predict(qda.fit, newdata =data1)
+
+
+
+
+
+error_rate_1<-(1/length(data1$group))*length(which(data1$group==y_pred_1$class))
+error_rate_1
+
+
+
+
+## 3(c) Suppose an individual has (glucose test/intolerence= 68, insulin test=122, SSPG = 544. Relative weight = 1.86, fasting plasma glucose = 184)
+
+
+glutest=c(68)
+instest=c(122)
+sspg=c(544)
+relwt=c(1.86)
+glufast=c(184)
+data0=data.frame(glutest,instest,sspg,relwt,glufast)
+
+
+
+predict(qda.fit,data0) ## Predicting qda for the given colun values
+
+predict(lda.fit,data0)   ## Predicting lda for the given colun values

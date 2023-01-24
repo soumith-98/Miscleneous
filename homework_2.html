@@ -1,0 +1,279 @@
+---
+title: "Homework_2"
+author: "Soumith"
+date: "05/10/2021"
+output: html_document
+---
+
+
+#install.packages('caTools')
+#library(caTools)
+#cereal_data=read.csv(file = 'cereal.csv')
+#cereal_data
+#split= sample.split(cereal_data, SplitRatio = 0.8)
+#training_data = subset(cereal_data,split == TRUE)
+#test_set = subset(cereal_data, split == FALSE)
+```{R}
+rm(list=ls())
+setwd('C:/Users/Soumith/Desktop/rr/Assignment 2')
+cereal_data=read.csv(file = 'cereal.csv')
+sum(is.na(cereal_data))
+cereal_data$carbo[cereal_data$carbo < 0] <- 0
+cereal_data$sugars[cereal_data$sugars < 0] <- 0
+cereal_data$potass[cereal_data$potass < 0] <- 0
+cereal_1 = cereal_data[,4:16]
+set.seed(1)
+split = sample(1:nrow(cereal_1), 1/5*nrow(cereal_1))
+test = cereal_1[split,]
+train = cereal_1[-split,]
+training = lm(rating ~ ., train)
+p=predict(training,newdata = test)
+err = test$rating - p
+MSE = mean(err**2)
+MSE
+```
+
+```{R}
+
+#### 1b #######
+library(leaps)
+?regsubsets
+f_subset = regsubsets(rating ~ ., data = train,method = "forward",nvmax=13,nbest = 1)
+with(summary(f_subset), data.frame(adjr2))
+```
+##### 1c #####
+```{R}
+train_m = regsubsets(rating ~ ., data = train,method="exhaustive",nvmax=13)
+with(summary(train_m), data.frame(adjr2))
+predict.regsubsets = function(object, newdata, id) {
+  form = as.formula(object$call[[2]])
+  mat = model.matrix(form, newdata)
+  coefi = coef(object, id = id)
+  mat[, names(coefi)] %*% coefi
+}
+
+train_r = train$rating
+test_r = test$rating
+train_error_f = matrix(rep(NA,12))
+test_error_f = matrix(rep(NA,12))
+
+for(i in 1:12){
+  rp_train = predict(f_subset,train,id=i)
+  rp_test = predict(f_subset,test,id=i)
+  
+  train_error_f[i] = (sum((train_r-rp_train)^2)/length(train_r))
+  test_error_f[i] = (sum((test_r-rp_test)^2)/length(test_r))
+}
+?regsubsets
+min(train_error_f)
+
+plot(train_error_f,col = "green", type= "b", xlab = "No. of variabes",ylab = "MSE", ylim = c(0,100))
+lines(test_error_f,col="red",type="b")
+test_error_f = na.omit(test_error_f)
+which(test_error_f == min(test_error_f))
+
+
+train_error_e = matrix(rep(NA,12))
+test_error_e = matrix(rep(NA,12))
+for(i in 1:12){
+  rpt_train = predict(train_m,train,id=i)
+  rpt_test = predict(train_m,test,id=i)
+  
+  train_error_e[i] = (sum((train_r-rpt_train)^2)/length(train_r))
+  test_error_e[i] = (sum((test_r-rpt_test)^2)/length(test_r))
+}
+
+min(train_error_e)
+plot(train_error_e,col = "green", type= "b", xlab = "No. of variabes",ylab = "MSE", ylim = c(0,100))
+lines(test_error_e,col="red",type="b")
+
+library(caret)
+load('zip.train.rdata')
+load('zip.test.rdata')
+trainzip = zip.train[which(zip.train[,1] == 4 | zip.train[,1] == 7),]
+testzip = zip.test[which(zip.test[,1] == 4 | zip.test[,1] == 7),]
+
+trainzip[which(trainzip[,1] == 4),1] = 0
+trainzip[which(trainzip[,1] == 7),1] = 1
+testzip[which(testzip[,1] == 7),1] = 1
+testzip[which(testzip[,1] == 4),1] = 0
+train.zip = data.frame(trainzip)
+test.zip = data.frame(testzip)
+m = as.factor(test.zip[,1])
+linear = lm(X1~.,train.zip)
+
+pre=predict(linear,newdata = test.zip)
+pre[pre<0]=0
+n = as.factor(round(pre))
+cf = confusionMatrix(data=n,reference = m)
+cf$overall[1]
+```
+#2Q
+#Accuracy(cf)
+```{R}
+library(class)
+acc = c()
+km =c()
+k = c(1,3,5,7,9,11,13,15)
+for(i in 1:8){
+  i
+  knn_model = knn(train.zip[,-c(1)],test.zip[,-c(1)],as.factor(trainzip[,1]),k =k[i])
+  c =confusionMatrix(data=m,knn_model)
+  acc[i]=c$overall[1]
+  km[i]=i
+}
+
+acc
+km
+################################3########################################
+
+
+rm(list = ls())
+
+## installing 'ISLR' package
+#install.packages('ISLR')
+
+library(ISLR)
+
+##loading College dataset
+data(College)
+College$Private <- as.numeric(College$Private)
+
+
+
+## print first 6 rows of dataset
+head(College)
+
+
+## split cereal dataset into training(70%) and testing(30%) dataset
+
+set.seed(123)  ##set seed so that we get different test and training dataset in future
+train <- sample(c(0,1:length(College$Apps)), size = 0.7*length(College$Apps))
+train_dataset <- College[train, ]
+dim(train_dataset)
+
+test_dataset <- College[-train, ]
+dim(test_dataset)
+```
+```{R}
+
+##  3a) 
+
+linear_model <- lm(Apps ~ ., data = train_dataset)
+summary_train_dataset <- summary(linear_model)
+mean(summary_train_dataset$residuals^2)
+
+
+Apps_predicted <- predict(linear_model, test_dataset, se.fit = TRUE)
+mean((Apps_predicted$fit - test_dataset$Apps)^2)
+```
+```{R}
+
+## b) 
+
+#installing gnmlet library which used for ridge regression
+#install.packages("glmnet")
+
+library(glmnet)
+
+#eliminating last column from training dataset and testing dataset 
+x_train <- train_dataset[, -c(2)]
+x_test <- test_dataset[, -c(2)]
+
+
+##converting dataset into martix
+x_test <- data.matrix(x_test)
+x_train <- data.matrix(x_train)
+
+y_train <- train_dataset[, 2]
+y_test <- test_dataset[, 2]
+
+## Implementing ridge regression model using glmnet
+ridge_model = glmnet(x_train, y_train, alpha=0, nlambda = 150)
+
+coef(ridge_model)
+dim(coef(ridge_model))
+
+# Checking coef value and calculating l2_norm for different lambdas
+ridge_model$lambda[20]
+coef(ridge_model)[,20]
+l2_norm <- sqrt(sum(coef(ridge_model)[2:17,20]^2))
+l2_norm
+## 11.04683
+
+
+#checking for lambda = 100 
+ridge_model$lambda[100]
+coef(ridge_model)[,100]
+l2_norm <- sqrt(sum(coef(ridge_model)[2:17,100]^2))
+l2_norm
+## 459.4337
+
+
+#checking for lambda = 150 
+ridge_model$lambda[150]
+coef(ridge_model)[,150]
+l2_norm <- sqrt(sum(coef(ridge_model)[2:17,150]^2))
+l2_norm
+## 578.8645
+
+
+## predict response for value of lambda value
+y_pred <- predict(ridge_model, newx = x_test, s = ridge_model$lambda[20])
+
+## MSE error
+mean((y_pred - y_test)^2)
+
+### Checking for different value of lambda 
+
+## predict response for value of lambda value
+y_pred <- predict(ridge_model, newx = x_test, s = ridge_model$lambda[10])
+
+## MSE error
+mean((y_pred - y_test)^2)
+
+## Implementing K - Cross Validation
+
+ridge_model_best <- cv.glmnet(x_train, y_train, alpha = 0, standardize = TRUE, nfolds = 4)
+
+plot(ridge_model_best)  
+
+## predict response for value of minimum lambda value
+y_pred <- predict(ridge_model_best, newx = x_test, s = ridge_model_best$lambda.min, type = "response")
+
+## predicting coefficients of features using predict function
+coef <- predict(ridge_model, s = ridge_model$lambda.min, type = "coefficients")
+
+
+## calculating MSE 
+mean((y_pred - y_test)^2)
+```
+```{R}
+
+
+## c)
+
+
+##Implementing Lasso regression model
+lasso_model <- glmnet(x_train, y_train, alpha = 1, lambda = 10^seq(2,-4, length = 50))
+
+
+
+## Implemeting lasso model with k-cross validation
+
+lasso_model_best <- cv.glmnet(x_train, y_train, alpha = 1,standardize = TRUE, nfolds = 6,lambda = 10^seq(2,-4, length = 50))
+plot(lasso_model_best)
+
+predict(lasso_model, s = lasso_model$lambda.min, type = "coefficients")
+
+## Predicting value and finding test error
+
+y_pred <- predict(lasso_model_best, newx = x_test, type = "response", s = min(lasso_model$lambda))
+lasso_model_coef <- predict(lasso_model_best, type = "coefficients", s = min(lasso_model$lambda))
+
+
+## calculating MSE 
+mean((y_pred - y_test)^2)
+```
+
+

@@ -1,0 +1,193 @@
+---
+title: "SDM2_HW_1"
+author: "Soumith"
+date: "03/03/2022"
+output: pdf_document
+---
+```{r}
+############################################################Q1###########################################################################
+library(ISLR2)
+data("College")
+head(College)
+pairs(College,
+       col = 'blue', #modify color
+      main = 'Pairwise')
+hist(College$Apps)
+hist(College$Accept)
+hist(College$Enroll)
+hist(College$Top10perc)
+hist(College$Top25perc)
+hist(College$Top25perc)
+hist(College$F.Undergrad)#Yes transformation is needed because the dataset looks a bit clumsy and getting conclusions is not easy and moreover the numbers are large
+n=head(College)
+nf=College
+hist(log(College$Apps))
+hist(log(College$Accept))
+hist(log(College$Enroll))
+hist(log(College$Top10perc))
+hist(log(College$Top25perc))#Here by applying log transform the depection of data became way simpler and visualization became way too simpler.
+hist(log(College$Top25perc))
+```
+```{r}
+
+#c} subsetting the dataframe into private and public
+private1<-subset(College,College$Private %in% c("Yes"))
+public1<-subset(College,College$Private %in% c("No"))
+save(private1,public1,file = "privatepublic.Rdata")#Here the data is divided into two subsets based on the given condition and saved
+Sort_private <- private1[order(-private1$Apps),]
+Sort_public <- public1[order(-public1$Apps),]
+Pri_25_median=median(private1$Top25perc)
+Pub_25_median=median(public1$Top25perc)
+
+pri_filt<-subset(private1,private1$Top25perc >=Pri_25_median )
+pri_filt
+pub_filt<-subset(public1,public1$Top25perc >=Pub_25_median )
+public1$Grad_rating = ifelse(public1$Grad.Rate<=33,"Low",ifelse(public1$Grad.Rate<=66,"Medium","High"))
+public1
+private1$Grad_rating = ifelse(private1$Grad.Rate<=33,"Low",ifelse(private1$Grad.Rate<=66,"Medium","High"))
+private1
+list_struct=list(private1,public1)
+list_struct
+save(list_struct,file='pubprilist')
+```
+```{r}
+########################################################Q2#####################################################
+
+data("marketing")
+head(marketing)
+
+N = 8993
+Sex = sample(c(1,2), N,replace = T)
+Martial_Status = sample(seq(1,5), N, replace = T)
+Age = sample(seq(1,7), N, replace = T)
+Education = sample(seq(1,6), N, replace = T)
+Occupation = sample(seq(1,9), N, replace = T)
+Income = sample(seq(1,9), N, replace = T)
+Years_In_BayArea = sample(seq(1,5), N, replace = T)
+Dual_Incomes = sample(seq(1,3), N, replace = T)
+
+Numbers_in_Household = sample(seq(1,9), N, replace = T)
+Number_of_Children = sample(seq(1,9), N, replace = T)
+Householder_Status = sample(seq(1,3), N, replace = T)
+Type_of_Home = sample(seq(1,5), N, replace = T)
+Ethinic_Classification = sample(seq(1,8), N, replace = T) 
+Language_in_Home = sample(seq(1,3), N, replace = T)
+
+training = data.frame(Sex, Martial_Status, Age, Education, Occupation, Income, Years_In_BayArea, Dual_Incomes, Numbers_in_Household, 
+                      Number_of_Children, Householder_Status, Type_of_Home, Ethinic_Classification, Language_in_Home)
+
+dfNames = c("Sex", "Martial_Status", "Age", "Education", "Occupation", "Income", "Years_In_BayArea", "Dual_Incomes", "Numbers_in_Household", 
+            "Number_of_Children", "Householder_Status", "Type_of_Home", "Ethinic_Classification", "Language_in_Home")
+
+names(training) = dfNames
+training$target = 1
+
+
+reference = training
+for(i in 1:ncol(reference)){
+  reference[,i] = sample(reference[,i], nrow(reference), replace = F)
+}
+reference$target = 0
+obj = rbind(reference, training)
+
+obj$Sex = as.factor(as.character(obj$Sex))
+obj$Martial_Status = as.factor(as.character(obj$Martial_Status))
+obj$Occupation = as.factor(as.character(obj$Occupation))
+obj$Dual_Incomes = as.factor(as.character(obj$Dual_Incomes))
+obj$Householder_Status = as.factor(as.character(obj$Householder_Status))
+obj$Type_of_Home = as.factor(as.character(obj$Type_of_Home))
+obj$Ethinic_Classification = as.factor(as.character(obj$Ethinic_Classification))
+obj$Language_in_Home = as.factor(as.character(obj$Language_in_Home))
+
+library(rpart)
+obj$target = as.factor(as.character(obj$target))
+model = rpart(target~., obj)
+summary(model)
+predicted = predict(model, obj[,-c(15)])
+predicted
+```
+```{r}
+
+#######################################################Q3#######################################################
+#A)Visualization
+
+library(ISLR2)
+data("Boston")
+head(Boston)
+summary(Boston)
+hist(Boston$crim)
+hist(Boston$zn)
+hist(Boston$indus)
+hist(Boston$chas)
+hist(Boston$nox)
+hist(Boston$rm)
+hist(Boston$age)
+hist(Boston$dis)
+
+hist(Boston$rad)
+hist(Boston$tax)
+hist(Boston$ptratio)
+hist(Boston$lstat)
+hist(Boston$medv)
+
+
+```
+```{r}
+### The histograms are plotted to know the trends
+library(corrplot)
+corrplot(cor(Boston),method = "shade", type = "full",diag = TRUE,tl.col = "black", bg = "white",title = "Corr Plot for the Boston Data",col = NULL)       
+
+##Based on the Corrplot I have decided to remove few variables as they are not having much relation with rest of the variables
+### Grouping Categories 
+df <- Boston
+df[["indus"]] <- NULL
+df[["chas"]] <- NULL
+df[["rm"]] <- NULL
+df[["nox"]] <- NULL
+df[["tax"]] <- NULL
+df[["lstat"]] <- NULL
+df[["medv"]] <- NULL
+
+##The rest of the variables are categorized to build a binary Incidence matrix
+df[["crim"]] <- ordered(cut(df[["crim"]],c(0,5,10,20,90)),labels = c("Low","Moderate","High","Extreme"))
+## The minimum and maximum crime rate are 0,88.97 hence I have started to categories the data from 0 to 90.
+df[["zn"]] <- ordered(cut(df[["zn"]],c(-1,10,30,101)),labels = c("Zero Area","Less Area","Ample Area"))
+## For the proportioned land zoned area most of the values are zero hence I have considered zero area and 
+df[["age"]] <- ordered(cut(df[["age"]],c(2,10,40,100)),labels = c("New","moderate","old"))
+#The age of the buildings has been taken based on the maximum and minimum values as well as quartile ranges
+df[["dis"]] <- ordered(cut(df[["dis"]],c(1,3,6,9,15)),labels = c("Very Short","Short","Long","Very Long"))
+#The distance has been categorised based on the mean and quartile range
+df[["rad"]] <- ordered(cut(df[["rad"]],c(0,4,9,24)),labels = c("Bad","Normal","Best"))
+#The index of radial highways has been categorised based on the highest value and least value. For instance the values above 9 and below indicates best index or the houses are near to the highways
+df[["ptratio"]] <- ordered(cut(df[["ptratio"]],c(12,18,20,23)),labels = c("High","Moderate","Low"))
+#The ptratio is considered to be high or good if the ratio is between 12 and 18 and low or bad if the ratio is between 20 and 23
+head(df)
+#Transforming the data frame to a binary incidence matrix
+
+df_new <- as(df,"transactions")
+summary(df_new)
+
+
+itemFrequencyPlot(df_new, support = 0.1,cex.names = 0.9 )
+rules <- apriori(df_new,parameter = list(support = 0.01,confidence = 0.5))## The Support and Confidence are considered to be 0.01 and 0.5
+summary(rules)
+```
+```{r}
+## Answer for question c starts from here
+rules_Distance_Very_Short <- subset(rules,subset = rhs %in% "dis=Very Short" & lift >1.2)
+summary(rules_Distance_Very_Short)
+inspect(head(sort(rules_Distance_Very_Short,by = "confidence"),n = 5))
+## In first association rule which has zero residential area and the age of the building as well is less or new.
+```
+
+
+```{r}
+
+## Answer for question d starts from here
+
+rules_low_ptratio <- subset(rules,subset = rhs %in% "ptratio=High" & lift >1.2)
+summary(rules_low_ptratio)
+inspect(head(sort(rules_low_ptratio,by = "confidence"),n = 5))
+
+## The residential area which is less zoned and the distance which is  very short proves to be the best  rule
+```
